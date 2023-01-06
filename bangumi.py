@@ -75,23 +75,6 @@ def teamSort(item) :
     teamId = item["team"]
     return teamDict[teamId]["order"] if teamId in teamDict  else MAX_VALUE_INT
 
-# title = "[星空字幕組][鏈鋸人 / Chainsaw Man][07][繁日雙語][1080P][WEBrip][MP4]（急招翻譯、校對）"
-# t1 = title.split('[')[3].strip().strip(']')
-# print(t1)
-# 获取title 和 magnet 数据
-def getTitleAndMagnetList(resContent : str):
-    jsonarr = resContent['torrents']
-    titleAndmagnet = []
-    for torrent in jsonarr:
-        title = torrent['title']
-        if quality in title and any(lang in title for lang in languageConditions) :
-            team = torrent['team_id']
-            if team == None and title.find("猎户不鸽压制") < 0:
-                continue
-            elif team == None and title.find("猎户不鸽压制") >= 0:
-                team = "person"
-            titleAndmagnet.append({'title': torrent['title'], 'magnet' : torrent['magnet'], "team" : team, "content": torrent['content'][0][0]})
-    return titleAndmagnet
 
 # 获取集数
 def getPart(title : str, group : str):
@@ -131,41 +114,68 @@ def getPart(title : str, group : str):
     return int(part)
 
 
+
+# title = "[星空字幕組][鏈鋸人 / Chainsaw Man][07][繁日雙語][1080P][WEBrip][MP4]（急招翻譯、校對）"
+# t1 = title.split('[')[3].strip().strip(']')
+# print(t1)
+# 获取title 和 magnet 数据
+def getTitleAndMagnetList(resContent : str):
+    jsonarr = resContent['torrents']
+    minPart = 10000
+    titleAndmagnet = []
+    for torrent in jsonarr:
+        title = torrent['title']
+        if quality in title and any(lang in title for lang in languageConditions) :
+            team = torrent['team_id']
+            if team == None and title.find("猎户不鸽压制") < 0:
+                continue
+            elif team == None and title.find("猎户不鸽压制") >= 0:
+                team = "person"
+
+            try :
+                part = getPart(torrent['title'], team)
+                minPart = min(minPart, part)
+                titleAndmagnet.append({'title': torrent['title'], 'magnet' : torrent['magnet'], "team" : team, "content": torrent['content'][0][0], "part" : part})
+            except :
+                print("getPart error torrent:" + torrent['title'])
+    return {"titleAndmagnet":titleAndmagnet, "minPart":minPart}
+
 # 解析title 和magnet 数据得到要下载的magnet
-def getMagnetUrl(data : dict):
+def getMagnetUrl(data : dict, nowPart : int):
     page_count = data["p"]
     titleAndmagnet = []
-    while (page_count >= data["p"]) : 
-        res = requests.post('https://bangumi.moe/api/torrent/search',json=data, headers=headers)
+    minPart = nowPart + 2
+    needQuery = nowPart + 1 != minPart 
+    res = {"status_code":200}
+    while (needQuery and data["p"] <= page_count) : 
+        try :
+            res = requests.post('https://bangumi.moe/api/torrent/search',json=data, headers=headers)
+        except : 
+            res.status_code = 202
         if (res.status_code != 200):
-            print("error get data:" + data)
-            return
+            print("error get data:" + json.dumps(data))
+            return titleAndmagnet
         responseJson = json.loads(res.text)
-        page_count = responseJson["page_count"]
+        if data["p"] == 1 :
+            page_count = responseJson["page_count"]
         data["p"] = data["p"] + 1
-        titleAndmagnet.extend(getTitleAndMagnetList(responseJson))
+        thisResult = getTitleAndMagnetList(responseJson)
+        minPart = min(minPart, thisResult["minPart"])
+        titleAndmagnet.extend(thisResult["titleAndmagnet"])
+        needQuery = nowPart + 1 != minPart
     return titleAndmagnet
-
-
-# data = {'type':'tag','tag_id':'632762c02eaf6e578875f7b4','p':1}
-# titleAndmagnet = getMagnetUrl(data)
 
 
 # 获取比已经存在的数据大的集数
 def getDownloadPartMagnet(titleAndmagnet : list, nowPart : int) :
+    titleAndmagnet.sort(key=teamSort)
     download = []
     needPart = list(range(nowPart + 1, nowPart + 50))
-
-    titleAndmagnet.sort(key=teamSort)
     for magnet in titleAndmagnet :
-        try :
-            part = getPart(magnet["title"], magnet["team"])
-            magnet["part"] = part
-            if part in needPart :
-                download.append(magnet)
-                del needPart[needPart.index(part)] 
-        except :
-            print("getPart error:" + json.dumps(magnet, ensure_ascii=False, indent=2))
+        part = magnet["part"]
+        if part in needPart :
+            download.append(magnet)
+            del needPart[needPart.index(part)] 
     return download
     
 
@@ -184,7 +194,7 @@ for timeInd in range(len(config['time'])):
         
         nowPart = resources[resInd]["nowPart"]
         # 获取磁力链接
-        titleAndmagnet = getMagnetUrl(data)
+        titleAndmagnet = getMagnetUrl(data, nowPart)
         # 获取比当前集数大的所有集数去下载
         downloads = getDownloadPartMagnet(titleAndmagnet, nowPart)
         print("change download:" + json.dumps(downloads, indent=2, ensure_ascii=False))
