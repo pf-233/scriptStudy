@@ -1,0 +1,59 @@
+version: "3.9"
+services:
+  ab:
+    image: estrellaxd/auto_bangumi:latest
+    container_name: ab
+    ports:
+      - 7892:7892
+    depends_on:
+      - qb
+    environment:
+      - PUID=1000
+      - PGID=1000
+    volumes:
+      - ./ab/config:/app/config #不要动
+      - ./ab/data:/app/data #不要动
+    restart: unless-stopped
+    dns:  #可选，指定 dns 服务器
+      - 223.5.5.5
+      - 119.29.29.29
+      - "2400:3200::1"
+      - "2402:4e00::"
+
+  qb:
+    image: superng6/qbittorrentee:latest
+    container_name: qb
+    ports:
+      - 8989:8989 #若需修改，两者应与下方的 QB_WEBUI_PORT 完全一致
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Asia/Shanghai
+      - WEBUIPORT=8989 #与ports的端口配置应一致
+    volumes:
+      - ./qb:/config #qb配置文件，不要动
+      - /volume1/bangumi:/bangumi #qb下载目录，自行修改，注意大小写
+    restart: unless-stopped
+    dns:  #可选，指定 dns 服务器
+      - 223.5.5.5
+      - 119.29.29.29
+      - "2400:3200::1"
+      - "2402:4e00::"
+
+  plex:
+    image: linuxserver/plex
+    container_name: plex
+    ports:
+      - 32400:32400
+      - 1900:1900/udp
+      - 3005:3005
+      - 5353:5353/udp
+    environment:
+      - TZ=Asia/Shanghai
+      - PUID=1000
+      - PGID=1000
+      - VERSION=docker
+    volumes:
+      - ./plex:/config
+      - ./Downloads:/media/Bangumi
+    restart: unless-stopped
