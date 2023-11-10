@@ -1,0 +1,65 @@
+@startuml
+
+actor user order 100
+participant qa order 200
+participant account order 300
+database mongodb order 400
+database redis order 500
+participant pularMessage order 600
+
+
+autonumber
+user -> qa : request
+qa -> account : filter里的accountRpcService.getAccountContextByToken
+account -> qa : accountInfo
+qa -> mongodb :  questionRepository.reactiveSelectByQID(qId)
+mongodb -> qa : Mono<Question>
+
+alt Question not null
+    autonumber 5.1.1
+    qa -> qa : check question state
+    qa -> mongodb : questionInvestRepository1.exist(qId, account, InvestTypeEnum.POINT.getCode())
+    mongodb -> qa : Boolean exist
+    alt exist is false
+    autonumber 5.1.4.1
+        qa -> mongodb : iGlobalConfigService.selectGlobalConfig(GlobalConfigEnums.PointValidatedEnum.INVEST_MAIN.getKey())
+        qa -> qa : check min amount 
+        qa -> redis :  rankService.isPrivateQueueRank(question.get_id())
+        redis -> qa : PrivateQueueRank
+        qa -> account :  pointsRpcService.beginTransaction
+        group transaction 
+            qa -> mongodb : userInvestRepository1.add
+            qa -> mongodb : questionInvestRepository1.insert
+            qa -> mongodb : iUserQuestionOptService.invest
+        end
+        group transaction result
+        autonumber 5.1.4.9.1.1
+            alt fail
+                qa -> account:pointsRpcService.rollbackTransaction
+            else success
+            autonumber 5.1.4.9.2.1
+                qa -> account:pointsRpcService.commitTransaction
+                qa -> pularMessage: pulsarSender.send(ProducerTopicEnum.RECORD, mqList);
+                qa -> mongodb : questionInvestRepository1.selectCount(qId, account)
+                mongodb -> qa : count
+                alt count == 1
+                    qa -> pularMessage: pulsar update question investedChart
+                    qa -> pularMessage: pulsar update question investedNumber
+                end
+                qa -> pularMessage: pulsar update question investedTotalPoints + 1
+                qa -> pularMessage: pulsar update question investedPoints + 1
+
+            end
+        end
+    else exist is false
+    autonumber 5.1.4.2
+    qa -> user : ERROR INVEST_REPETITION
+    end
+
+else Question is null
+    autonumber 5.2.1
+    qa -> user : ERROR: QUESTION_NOTFOUND
+
+end
+
+@enduml

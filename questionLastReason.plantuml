@@ -1,0 +1,33 @@
+@startuml
+
+actor user order 10
+participant qa order 20
+participant account order 30
+database redis order 40
+database mongodb order 50
+
+autonumber
+user -> qa : request
+qa -> account : filter里的accountRpcService.getAccountContextByToken
+account -> qa : accountInfo
+qa -> mongodb : questionRepository.selectByQID(qID)
+mongodb -> qa : question
+qa -> qa : ChartUtil.getInvestTendChart
+qa -> redis : rank:questionPrivateQueue  limit 50
+redis -> qa : convert to ReasonPageVo
+qa -> mongodb : GlobalConfigService.selectByKey(discussion_n_prex)
+mongodb -> qa : BigDecimal : prex
+
+alt account not null
+    qa -> mongodb : userQuestionOptRepository.selectByQuestionId(account, qID)
+    mongodb -> qa : userQuestionOpt
+    alt userQuestionOpt not null
+        qa -> qa : 设置QuestionDetailVo 投资选项积分等
+    end
+end
+
+qa -> qa : discussionOps() 选项分布图
+qa -> user : QuestionDetailVo
+
+@enduml
+

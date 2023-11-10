@@ -1,0 +1,22 @@
+@startuml
+
+participant qa order 10
+database mongodb order 20
+database redis order 30
+
+autonumber
+qa -> qa : scheduleTask
+qa -> mongodb : globalConfigRepository.listByKey(keyList)
+mongodb -> qa : point_cost_answer,point_cost_reason,point_cost_like
+
+loop List<Question> not empty
+    qa -> mongodb : questionRepository.listQuestionPrivateAsc(beginTime, 500, authList)
+    mongodb -> qa : List<Question> questionList
+    qa -> qa : calculate point sum and update privateRankScore field
+    qa -> qa : offer to BoundPriorityQueue
+    qa -> qa : beginTime = lastCreateTime
+end
+
+qa -> redis : leftPushAll()
+qa -> redis : tirm(0, BoundPriorityQueue.size - 1)
+@enduml

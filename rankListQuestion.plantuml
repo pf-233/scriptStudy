@@ -1,0 +1,22 @@
+@startuml
+
+actor user order 10
+participant qa order 20
+participant account order 30
+database redis order 40
+database mongodb order 50
+
+autonumber
+user -> qa : request
+qa -> account : filter里的accountRpcService.getAccountContextByToken
+account -> qa : accountInfo
+qa -> redis : rank:questionPrivateQueue  limit 50
+redis -> qa : convert to QuestionPrivateQueueBo
+alt QuestionPrivateQueueBo not null
+    qa -> mongodb : userInvestRepository.listByQIDList(account, qIdList)
+    mongodb -> qa : List<UserInvest>
+end
+qa -> qa : convert to QuestionPrivateQueueVo
+qa -> user : response
+
+@enduml

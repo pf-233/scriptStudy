@@ -10,4 +10,8 @@ def un_gz(file_name):
     open(f_name, "wb+").write(g_file.read())
     g_file.close()
      
-un_gz('D:\mygit\pip-22.3.1.tar.gz')
+# un_gz('D:\mygit\pip-22.3.1.tar.gz')
+
+print("0xD1d8e20C784532a71C6C4604AD74222E23BA32fF".lower())
+
+

@@ -1,0 +1,17 @@
+@startuml
+
+actor user order 10
+participant qa order 20
+participant account order 30
+database redis order 40
+
+autonumber
+user -> qa : request
+qa -> account : filter里的accountRpcService.getAccountContextByToken
+account -> qa : accountInfo
+qa -> redis : rank:questionPrizePool  limit 50
+redis -> qa : convert to List<String> range
+qa -> qa : convert to List<QuestionPrizePoolVo>
+qa -> user : response 
+
+@enduml

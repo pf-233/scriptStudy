@@ -25,11 +25,15 @@ def saveConfigFile(configJson : dict, path : str) :
 
 # print(readConfig())
 config = readConfig("config.json")
+saveConfigFile(config, "configBackup.json")
 
 print("orign config:" + json.dumps(config, indent=2, ensure_ascii=False))
 # {"saveFile": saveFile, "moveFile": moveFile}
 def movePath(savePath : list) :
     for file in savePath:
+        if (not os.path.exists(file["moveFile"])) : {
+            os.makedirs(file["moveFile"])
+        }
         shutil.move(file["saveFile"], file["moveFile"])
         print(file)
 
@@ -125,7 +129,7 @@ def getTitleAndMagnetList(resContent : str):
     titleAndmagnet = []
     for torrent in jsonarr:
         title = torrent['title']
-        if quality in title and any(lang in title for lang in languageConditions) :
+        if quality in title and any(lang in title for lang in languageConditions) and "外挂" not in title:
             team = torrent['team_id']
             if team == None and title.find("猎户不鸽压制") < 0:
                 continue
@@ -139,6 +143,49 @@ def getTitleAndMagnetList(resContent : str):
             except :
                 print("getPart error torrent:" + torrent['title'])
     return {"titleAndmagnet":titleAndmagnet, "minPart":minPart}
+docker run -d \
+  --name=qbittorrent \
+  -e PUID=0 \
+  -e PGID=0 \
+  -e TZ=Etc/UTC \
+  -e WEBUI_PORT=8080 \
+  -p 8080:8080 \
+  -p 6881:6881 \
+  -p 6881:6881/udp \
+  -v /path/to/appdata/config:/config \
+  -v /path/to/downloads:/downloads \
+  --restart unless-stopped \
+  linuxserver/qbittorrent:latest
+
+docker run -d \
+--name=plex1 \
+  -e PUID=0 \
+  -e PGID=0 \
+  -e TZ=Etc/UTC \
+  -p 32400:32400 \
+  -v /path/to/library:/config \
+  -v /path/to/tvseries:/tv \
+  -v /path/to/movies:/movies \
+  --restart unless-stopped \
+  lscr.io/linuxserver/plex:latest
+
+plex:
+  image: linuxserver/plex
+  container_name: plex
+  ports:
+    - 32400:32400
+    - 1900:1900/udp
+    - 3005:3005
+    - 5353:5353/udp
+  environment:
+    - TZ=Asia/Shanghai
+    - PUID=0
+    - PGID=0
+    - VERSION=docker
+  volumes:
+    - ./plex:/config
+    - ./Downloads:/media/Bangumi
+  restart: unless-stopped
 
 # 解析title 和magnet 数据得到要下载的magnet
 def getMagnetUrl(data : dict, nowPart : int):
@@ -156,6 +203,8 @@ def getMagnetUrl(data : dict, nowPart : int):
             print("error get data:" + json.dumps(data))
             return titleAndmagnet
         responseJson = json.loads(res.text)
+        if (len(responseJson) == 0):
+            return titleAndmagnet
         if data["p"] == 1 :
             page_count = responseJson["page_count"]
         data["p"] = data["p"] + 1

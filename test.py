@@ -15,3 +15,6 @@ from bangumi import movePath;
 savePath = readConfig("savePath.json")
 movePath = savePath["savePath"]
 movePath(savePath)
+
+
+

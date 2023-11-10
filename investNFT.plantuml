@@ -1,0 +1,64 @@
+@startuml
+
+actor user order 100
+participant qa order 200
+participant account order 300
+database mongodb order 400
+database redis order 500
+participant pularMessage order 600
+
+
+autonumber
+user -> qa : request
+qa -> account : filter里的accountRpcService.getAccountContextByToken
+account -> qa : accountInfo
+qa -> mongodb :  questionRepository.reactiveSelectByQID(qId)
+mongodb -> qa : Mono<Question>
+
+alt Question not null
+    autonumber 5.1.1
+    qa -> qa : check question state
+    qa -> mongodb : questionInvestRepository1.exist(qId, account, InvestTypeEnum.POINT.getCode())
+    mongodb -> qa : Boolean exist
+    alt exist is false
+    autonumber 5.1.4.1
+        qa -> account : penRpcService.getNftPenSnapshots(walletAddress)
+        account -> qa : Set<NftPenSnapshotVO> snaps
+        qa -> mongodb : uestionNftIdRepository.getNftIds(qID) 
+        mongodb -> qa : nftids 
+        qa -> mongodb : iGlobalConfigService.selectGlobalConfig(GlobalConfigEnums.PointValidatedEnum.NFT_INVEST_CONVERT_POINT.getKey())
+        qa -> mongodb : iGlobalConfigService.selectGlobalConfig(GlobalConfigEnums.QuestionFiledEnum.NFT_SUPPORT_NUM.getKey())
+        qa -> redis :  rankService.isPrivateQueueRank(question.get_id())
+        redis -> qa : PrivateQueueRank
+        qa -> redis : used_nft_id:YYYY_MM_dd:account
+        qa -> account :  pointsRpcService.beginTransaction
+        group doInvestNft transaction 
+            qa -> mongodb : questionInvestRepository1.insert(operations, question.get_id(), questionInvest)
+            qa -> mongodb : userInvestRepository1.add(operations, account, userInvest)
+            qa -> mongodb : questionNftIdRepository.insertBatch(operations, question.get_id(), nftIds)  
+            qa -> mongodb : iUserQuestionOptService.investNft(operations, account, question, sum)
+            qa -> redis : nftIdIncr(accountInfoRespVO.getAccount(),nftSupportNum)
+        end
+        group transaction success 
+        autonumber 5.1.4.16.1
+            qa -> mongodb : questionInvestRepository1.selectCount(qId, account)
+            mongodb -> qa : count
+            alt count == 1
+                qa -> pularMessage: pulsar update question investedChart
+                qa -> pularMessage: pulsar update question investedNumber
+            end
+            qa -> pularMessage: pulsar update question investedTotalPoints + 1
+            qa -> pularMessage: pulsar update question investedPoints + 1
+        end
+    else exist is false
+    autonumber 5.1.4.2
+    qa -> user : ERROR INVEST_REPETITION
+    end
+
+else Question is null
+    autonumber 5.2.1
+    qa -> user : ERROR: QUESTION_NOTFOUND
+
+end
+
+@enduml

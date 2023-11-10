@@ -1,0 +1,14 @@
+@startuml
+
+start
+:selectQuestion;
+
+if (question.version > 0) then (yes)
+    :CRUD with new collections;
+else (no) 
+    :CRUD with old collections;
+endif
+
+stop
+
+@enduml

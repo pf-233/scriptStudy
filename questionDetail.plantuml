@@ -1,0 +1,33 @@
+@startuml
+
+actor user
+participant qa
+participant account 
+database mongodb
+database redis
+
+autonumber
+user -> qa : request
+qa -> account : filter里的accountRpcService.getAccountContextByToken
+account -> qa : accountInfo
+qa -> mongodb : userQuestionOpt.selectByQuestionId(account, qId)
+mongodb -> qa : userQuestionOpt
+
+alt userQuestionOpt not null
+    autonumber 5.1.1
+    qa -> mongodb : reasonRepository.selectByReasonId(lastReasonId)
+    mongodb -> qa : ReasonBo
+    qa -> mongodb : replyRepository.listReplyLimit2(Collections.singletonList(lastReasonId))
+    mongodb -> qa : List<Reply>
+    qa -> qa : convert to ReasonPageVo
+    qa -> user : ReasonPageVo
+
+else userQuestionOpt is null
+    autonumber 5.2.1
+    qa -> user : null
+
+end
+
+@enduml
+
+

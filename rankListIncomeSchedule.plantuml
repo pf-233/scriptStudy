@@ -1,0 +1,17 @@
+@startuml
+
+participant qa order 10
+database mongodb order 20
+database redis order 30
+
+autonumber
+qa -> qa : scheduleTask
+qa -> mongodb : userStatRepository.listForRank("totalIncome", MAX_SIZE(100))
+mongodb -> qa : List<UserStat> userStats
+qa -> mongodb : accountRpcService.getInfoListByIds(accountIdList)
+mongodb -> qa : List<AccountInfoRpcDTO>
+qa -> qa : compose userStats and accountInfo to RankUserBo
+qa -> redis : leftPushAll()
+qa -> redis : tirm(0, userStats.size - 1)
+
+@enduml

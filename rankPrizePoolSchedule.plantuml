@@ -1,0 +1,19 @@
+@startuml
+
+participant qa order 10
+database mongodb order 20
+database redis order 30
+
+autonumber
+qa -> qa : scheduleTask
+loop List<Question> questionList not empty
+    qa -> mongodb : questionRepository.listProcessQuestionAsc(beginTime, 500, authList)
+    mongodb -> qa : List<Question> questionList
+    qa -> qa : convert Question to QuestionPrizePoolBo
+    qa -> qa : offer to BoundPriorityQueue
+    qa -> qa : beginTime = lastCreateTime
+end
+qa -> qa : convert QuestionPrizePoolBo to QuestionPrizePoolVo
+qa -> redis : leftPushAll()
+qa -> redis : tirm(0, BoundPriorityQueue.size - 1)
+@enduml
